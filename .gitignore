@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+web-build/
+.env
+CLAUDE.local.md
+*.log
+.DS_Store
+.tokens.json
+.claude/settings.local.json
