@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+.tokens.json
+.expo
+dist
+web-build
+*.log

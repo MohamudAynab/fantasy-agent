@@ -13,9 +13,15 @@ import chatRouter from './routes/chat';
 import pushRouter from './routes/push';
 import draftRouter from './routes/draft';
 import { startMonitor } from './jobs/monitor';
+import { BIGQUERY_PROJECT_ID, getBigQueryClient } from './services/bigquery';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
+
+if (BIGQUERY_PROJECT_ID) {
+  getBigQueryClient();
+  console.log(`BigQuery client initialized for project ${BIGQUERY_PROJECT_ID}`);
+}
 
 app.use(helmet());
 app.use(cors({ origin: ['http://localhost:8081', 'http://localhost:19006'] }));

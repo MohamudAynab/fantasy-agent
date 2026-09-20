@@ -1,8 +1,34 @@
 import { GoogleGenAI, FunctionDeclaration, Content } from '@google/genai';
+import { getGeminiApiKey, serverConfig } from '../config';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiPromise: Promise<GoogleGenAI> | undefined = process.env.GEMINI_API_KEY_SECRET
+  ? undefined
+  : Promise.resolve(new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }));
 
-const DEFAULT_MODEL = 'gemini-3.7-flash';
+function getAi(): Promise<GoogleGenAI> {
+  aiPromise ??= getGeminiApiKey().then((apiKey) => new GoogleGenAI({ apiKey }));
+  return aiPromise;
+}
+
+function isRetryable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const status = (error as { status?: number; code?: number })?.status ?? (error as { code?: number })?.code;
+  return status === 429 || (typeof status === 'number' && status >= 500) ||
+    /429|resource exhausted|temporarily unavailable|timeout|network|socket/i.test(message);
+}
+
+async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryable(error) || attempt >= serverConfig.maxRetries) throw error;
+      await new Promise((resolve) =>
+        setTimeout(resolve, serverConfig.retryBaseDelayMs * 2 ** attempt)
+      );
+    }
+  }
+}
 
 export interface AgentTool {
   name: string;
@@ -15,7 +41,7 @@ export async function runAgent(
   systemPrompt: string,
   userMessage: string,
   tools: AgentTool[],
-  model = DEFAULT_MODEL,
+  model = serverConfig.model,
   history: Content[] = []
 ): Promise<string> {
   const functionDeclarations: FunctionDeclaration[] = tools.map(({ name, description, input_schema }) => ({
@@ -26,16 +52,19 @@ export async function runAgent(
 
   const contents: Content[] = [...history, { role: 'user', parts: [{ text: userMessage }] }];
 
-  for (let i = 0; i < 10; i++) {
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        tools: functionDeclarations.length ? [{ functionDeclarations }] : undefined,
-        maxOutputTokens: 4096,
-      },
-    });
+  for (let i = 0; i < serverConfig.maxAgentIterations; i++) {
+    const response = await withRetry(async () =>
+      (await getAi()).models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          tools: functionDeclarations.length ? [{ functionDeclarations }] : undefined,
+          temperature: serverConfig.temperature,
+          maxOutputTokens: serverConfig.maxOutputTokens,
+        },
+      })
+    );
 
     const calls = response.functionCalls;
     if (!calls || calls.length === 0) {

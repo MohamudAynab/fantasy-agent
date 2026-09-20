@@ -7,11 +7,13 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "server": "tsx --env-file .env server/index.ts",
+    "server": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "jest"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^9.1.0",
+    "@google-cloud/secret-manager": "^7.1.0",
     "@google/genai": "^2.19.0",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
