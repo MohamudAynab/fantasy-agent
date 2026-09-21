@@ -2,3 +2,8 @@
 .env
 node_modules/
 .git/
+fantasy-agent/
+.expo/
+dist/
+web-build/
+*.log
